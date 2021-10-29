@@ -1,5 +1,7 @@
 package service
 
+import "sync"
+
 type ScraperService interface {
-	Do(url string)
+	Do(url string, waitGroup *sync.WaitGroup)
 }

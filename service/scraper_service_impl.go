@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"io"
-	"log"
 	"net/http"
 	"old-unsri-scraper/entity"
 	"old-unsri-scraper/helper"
@@ -19,7 +18,7 @@ func NewScraperServiceImpl(csvService CSVService) *ScraperServiceImpl {
 	return &ScraperServiceImpl{csvService: csvService}
 }
 
-func (service *ScraperServiceImpl) Do(url string) {
+func (service *ScraperServiceImpl) Do(url string, waitGroup *sync.WaitGroup) {
 	htmlResponse, err := http.Get(url)
 	helper.LogIfError(err)
 	defer func(Body io.ReadCloser) {
@@ -34,45 +33,31 @@ func (service *ScraperServiceImpl) Do(url string) {
 	document, err := goquery.NewDocumentFromReader(htmlResponse.Body)
 	helper.LogIfError(err)
 
-	mutex := sync.Mutex{}
-	wg := new(sync.WaitGroup)
 	var students []entity.Student
 
 	document.Find(".mainContent-news-element table tbody").Children().Next().
 		Children().Find("table tbody").Children().Each(func(i int, selection *goquery.Selection) {
-		go func() {
-			wg.Add(1)
-			defer wg.Done()
-
-			student := entity.Student{}
-			if i != 0 && i != 1 {
-				selection.Children().Each(func(i int, selection *goquery.Selection) {
-					switch i {
-					case 2:
-						student.Name = helper.EscapeNewLineAndIndent(selection.Text())
-						break
-					case 3:
-						student.NIM = helper.EscapeNewLineAndIndent(selection.Text())
-						break
-					}
-				})
-			}
-			if student.Name != "" && student.NIM != "" {
-				mutex.Lock()
-				students = append(students, student)
-				mutex.Unlock()
-			}
-		}()
+		student := entity.Student{}
+		if i != 0 && i != 1 {
+			selection.Children().Each(func(i int, selection *goquery.Selection) {
+				switch i {
+				case 2:
+					student.Name = helper.EscapeNewLineAndIndent(selection.Text())
+					break
+				case 3:
+					student.NIM = helper.EscapeNewLineAndIndent(selection.Text())
+					break
+				}
+			})
+		}
+		if student.Name != "" && student.NIM != "" {
+			students = append(students, student)
+		}
 	})
 
-	wg.Wait()
-
 	go func() {
-		wg.Add(1)
+		waitGroup.Add(1)
+		defer waitGroup.Done()
 		service.csvService.WriteAllToCSV(students)
-		wg.Done()
 	}()
-
-	wg.Wait()
-	log.Println("CSV OK")
 }
