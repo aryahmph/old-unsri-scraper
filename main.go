@@ -45,8 +45,8 @@ func main() {
 	}
 
 	waitGroup.Wait()
-	// Sleep while because last csv need to extra time to write
-	time.Sleep(2 * time.Second)
+	// Sleep while because last CSV need extra time to write, IDK why
+	time.Sleep(5 * time.Second)
 
 	log.Println("OK")
 	log.Println("Execution time :", time.Since(start))
